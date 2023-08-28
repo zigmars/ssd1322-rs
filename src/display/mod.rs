@@ -24,6 +24,12 @@ use crate::display::overscanned_region::OverscannedRegion;
 use crate::display::region::Region;
 use crate::interface;
 
+use core::convert::TryInto;
+use embedded_graphics::{
+    pixelcolor::{Gray4, GrayColor},
+    prelude::*,
+};
+
 /// A pixel coordinate pair of `column` and `row`. `column` must be in the range [0,
 /// `consts::PIXEL_COL_MAX`], and `row` must be in the range [0, `consts::PIXEL_ROW_MAX`].
 #[derive(Clone, Copy, Debug)]
@@ -38,6 +44,7 @@ where
     display_size: PixelCoord,
     display_offset: PixelCoord,
     persistent_config: Option<PersistentConfig>,
+    framebuffer: [u8; 256 * 64],
 }
 
 impl<DI> Display<DI>
@@ -72,6 +79,7 @@ where
             display_size: display_size,
             display_offset: display_offset,
             persistent_config: None,
+            framebuffer: [0; 256 * 64]
         }
     }
 
@@ -163,6 +171,13 @@ where
         Ok(Region::new(&mut self.iface, ul, lr))
     }
 
+    pub fn flush(&mut self) {
+        let fb = self.framebuffer.clone();
+        if let Ok(mut reg) = self.region(PixelCoord(0, 0), self.display_size) {
+            reg.draw(fb.iter().copied()).ok();
+        }
+    }
+
     /// Construct a rectangular region onto which to draw image data which silently discards
     /// overscan.
     ///
@@ -195,6 +210,38 @@ where
             self.display_size.0,
             self.display_offset.0,
         ))
+    }
+}
+
+impl<DI> DrawTarget for Display<DI>
+where
+    DI: interface::DisplayInterface,
+{
+    type Color = Gray4;
+    type Error = core::convert::Infallible;
+
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        for Pixel(coord, color) in pixels.into_iter() {
+            if let Ok((x @ 0..=255, y @ 0..=63)) = coord.try_into() {
+                // Calculate the index in the framebuffer.
+                let index: u32 = x + y * 256;
+                self.framebuffer[index as usize] = color.luma();
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<DI> OriginDimensions for Display<DI>
+where
+    DI: interface::DisplayInterface,
+{
+    fn size(&self) -> Size {
+        Size::new(self.display_size.0 as u32, self.display_size.1 as u32)
     }
 }
 
