@@ -75,11 +75,6 @@ pub mod spi {
 
         /// Send a command word to the display's command register. Synchronous.
         fn send_command(&mut self, cmd: u8) -> Result<(), Self::Error> {
-            // The SPI device has FIFOs that we must ensure are drained before the bus will
-            // quiesce. This must happen before asserting DC for a command.
-            while let Ok(_) = self.spi.read() {
-                self.dc.set_high().map_err(Self::Error::from_dc)?;
-            }
             self.dc.set_low().map_err(Self::Error::from_dc)?;
             let bus_op = nb::block!(self.spi.send(cmd))
                 .and_then(|_| nb::block!(self.spi.read()))
