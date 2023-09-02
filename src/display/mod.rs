@@ -44,7 +44,7 @@ where
     display_size: PixelCoord,
     display_offset: PixelCoord,
     persistent_config: Option<PersistentConfig>,
-    framebuffer: [u8; 256 * 64],
+    framebuffer: [u8; (256 * 64)>>1],
 }
 
 impl<DI> Display<DI>
@@ -79,7 +79,7 @@ where
             display_size: display_size,
             display_offset: display_offset,
             persistent_config: None,
-            framebuffer: [0; 256 * 64]
+            framebuffer: [0; (256 * 64) >> 1]
         }
     }
 
@@ -171,10 +171,11 @@ where
         Ok(Region::new(&mut self.iface, ul, lr))
     }
 
-    pub fn flush(&mut self) {
-        let fb = self.framebuffer.clone();
+    pub fn swap_clear(&mut self) {
+        let mut fb = [0u8; 128 * 64];
+        core::mem::swap(&mut self.framebuffer, &mut fb);
         if let Ok(mut reg) = self.region(PixelCoord(0, 0), self.display_size) {
-            reg.draw(fb.iter().copied()).ok();
+            reg.draw_packed(fb.iter().copied()).ok();
         }
     }
 
@@ -227,8 +228,14 @@ where
         for Pixel(coord, color) in pixels.into_iter() {
             if let Ok((y @ 0..=63, x @ 0..=255)) = coord.try_into() {
                 // Calculate the index in the framebuffer.
-                let index: u32 = (255-x) + y * 256;
-                self.framebuffer[index as usize] = color.luma();
+                let index: u32 = ((255-x) + y * 256) >> 1;
+                if x % 2 == 0 {
+                    self.framebuffer[index as usize] &= 0xF0u8;
+                    self.framebuffer[index as usize] |= 0x0Fu8 & (color.luma() as u8);
+                } else {
+                    self.framebuffer[index as usize] &= 0x0Fu8;
+                    self.framebuffer[index as usize] |= 0xF0u8 & ((color.luma() as u8) << 4);
+                }
             }
         }
 
