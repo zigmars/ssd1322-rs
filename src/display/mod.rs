@@ -24,6 +24,8 @@ use crate::display::overscanned_region::OverscannedRegion;
 use crate::display::region::Region;
 use crate::interface;
 
+use core::convert::TryInto;
+
 use embedded_graphics::{
     pixelcolor::{Gray4, GrayColor},
     prelude::*,
@@ -226,16 +228,16 @@ where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
         for Pixel(coord, color) in pixels.into_iter() {
-            let y = coord.x as u32;
-            let x = coord.y as u32;
-            // Calculate the index in the framebuffer.
-            let index: u32 = ((255-x) + y * 256) >> 1;
-            if x % 2 == 0 {
-                self.framebuffer[index as usize] &= 0xF0u8;
-                self.framebuffer[index as usize] |= 0x0Fu8 & (color.luma() as u8);
-            } else {
-                self.framebuffer[index as usize] &= 0x0Fu8;
-                self.framebuffer[index as usize] |= 0xF0u8 & ((color.luma() as u8) << 4);
+            if let Ok((y @ 0..=63, x @ 0..=255)) = coord.try_into() {
+                // Calculate the index in the framebuffer.
+                let index: usize = (((255-x) + y * 256) >> 1) as usize;
+                if x % 2 == 0 {
+                    self.framebuffer[index] &= 0xF0u8;
+                    self.framebuffer[index] |= 0x0Fu8 & (color.luma() as u8);
+                } else {
+                    self.framebuffer[index] &= 0x0Fu8;
+                    self.framebuffer[index] |= 0xF0u8 & ((color.luma() as u8) << 4);
+                }
             }
         }
 
