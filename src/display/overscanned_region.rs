@@ -100,15 +100,18 @@ where
         );
         let input_with_coords = input_coords.zip(iter);
         let viewable_pixel_cols = self.viewable_pixel_cols;
-        let only_viewable = input_with_coords
+        let _only_viewable = input_with_coords
             .filter(|((r, c), _)| {
                 in_range(*r, 0, NUM_PIXEL_ROWS as i16) && in_range(*c, 0, viewable_pixel_cols)
             })
             .map(|(_, pixels)| pixels);
+        /*
         self.viewable_region
             .as_mut()
             .unwrap()
             .draw_packed(only_viewable)
+        */
+        Ok(())
     }
 
     /// Draw unpacked pixel image data into the region, where each byte independently represents a

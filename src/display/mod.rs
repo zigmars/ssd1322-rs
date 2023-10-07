@@ -24,7 +24,6 @@ use crate::display::overscanned_region::OverscannedRegion;
 use crate::display::region::Region;
 use crate::interface;
 
-use core::convert::TryInto;
 use embedded_graphics::{
     pixelcolor::{Gray4, GrayColor},
     prelude::*,
@@ -171,12 +170,13 @@ where
         Ok(Region::new(&mut self.iface, ul, lr))
     }
 
-    pub fn swap_clear(&mut self) {
+    pub fn swap_clear(&mut self) -> [u8; (256 * 64)>>1] {
         let mut fb = [0u8; 128 * 64];
         core::mem::swap(&mut self.framebuffer, &mut fb);
         if let Ok(mut reg) = self.region(PixelCoord(0, 0), self.display_size) {
-            reg.draw_packed(fb.iter().copied()).ok();
+            reg.setup_draw_packed().ok();
         }
+        fb
     }
 
     /// Construct a rectangular region onto which to draw image data which silently discards
@@ -226,16 +226,16 @@ where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
         for Pixel(coord, color) in pixels.into_iter() {
-            if let Ok((y @ 0..=63, x @ 0..=255)) = coord.try_into() {
-                // Calculate the index in the framebuffer.
-                let index: u32 = ((255-x) + y * 256) >> 1;
-                if x % 2 == 0 {
-                    self.framebuffer[index as usize] &= 0xF0u8;
-                    self.framebuffer[index as usize] |= 0x0Fu8 & (color.luma() as u8);
-                } else {
-                    self.framebuffer[index as usize] &= 0x0Fu8;
-                    self.framebuffer[index as usize] |= 0xF0u8 & ((color.luma() as u8) << 4);
-                }
+            let y = coord.x as u32;
+            let x = coord.y as u32;
+            // Calculate the index in the framebuffer.
+            let index: u32 = ((255-x) + y * 256) >> 1;
+            if x % 2 == 0 {
+                self.framebuffer[index as usize] &= 0xF0u8;
+                self.framebuffer[index as usize] |= 0x0Fu8 & (color.luma() as u8);
+            } else {
+                self.framebuffer[index as usize] &= 0x0Fu8;
+                self.framebuffer[index as usize] |= 0xF0u8 & ((color.luma() as u8) << 4);
             }
         }
 
