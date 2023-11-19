@@ -228,10 +228,10 @@ where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
         for Pixel(coord, color) in pixels.into_iter() {
-            if let Ok((y @ 0..=63, x @ 0..=255)) = coord.try_into() {
+            if let Ok((x @ 0..=255, y @ 0..=63)) = coord.try_into() {
                 // Calculate the index in the framebuffer.
-                let index: usize = (((255-x) + y * 256) >> 1) as usize;
-                if x % 2 == 0 {
+                let index: usize = ((x + y * 256) >> 1) as usize;
+                if x % 2 == 1 {
                     self.framebuffer[index] &= 0xF0u8;
                     self.framebuffer[index] |= 0x0Fu8 & (color.luma() as u8);
                 } else {
@@ -250,7 +250,7 @@ where
     DI: interface::DisplayInterface,
 {
     fn size(&self) -> Size {
-        Size::new(self.display_size.1 as u32, self.display_size.0 as u32)
+        Size::new(self.display_size.0 as u32, self.display_size.1 as u32)
     }
 }
 
